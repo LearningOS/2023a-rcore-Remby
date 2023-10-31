@@ -23,7 +23,7 @@ use riscv::register::{
     scause::{self, Exception, Interrupt, Trap},
     sie, stval, stvec,
 };
-
+use crate::task::info_change;
 global_asm!(include_str!("trap.S"));
 
 /// Initialize trap handling
@@ -54,7 +54,9 @@ pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
             // jump to next instruction anyway
             cx.sepc += 4;
             // get system call return value
+            info_change( cx.x[17]);
             cx.x[10] = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]) as usize;
+             
         }
         Trap::Exception(Exception::StoreFault) | Trap::Exception(Exception::StorePageFault) => {
             println!("[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x}, kernel killed it.", stval, cx.sepc);

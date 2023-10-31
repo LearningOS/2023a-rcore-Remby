@@ -17,10 +17,11 @@ mod task;
 use crate::config::MAX_APP_NUM;
 use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
+use crate::timer::get_time_ms;
 use lazy_static::*;
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
-
+use crate::config::MAX_SYSCALL_NUM;
 pub use context::TaskContext;
 
 /// The task manager, where all the tasks are managed.
@@ -37,6 +38,7 @@ pub struct TaskManager {
     num_app: usize,
     /// use inner value to get mutable access
     inner: UPSafeCell<TaskManagerInner>,
+
 }
 
 /// Inner of Task Manager
@@ -45,6 +47,7 @@ pub struct TaskManagerInner {
     tasks: [TaskControlBlock; MAX_APP_NUM],
     /// id of current `Running` task
     current_task: usize,
+
 }
 
 lazy_static! {
@@ -54,6 +57,8 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
+            task_syscall_time:0,
+            task_syscall_num:[0;MAX_SYSCALL_NUM],
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
             task.task_cx = TaskContext::goto_restore(init_app_cx(i));
@@ -66,7 +71,7 @@ lazy_static! {
                     tasks,
                     current_task: 0,
                 })
-            },
+            }
         }
     };
 }
@@ -135,6 +140,31 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+
+    /// a
+    fn info_change(&self,id:usize){
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].task_syscall_num[id]+=1;
+    }
+
+    /// a
+    fn get_time_info(&self)->usize{
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let r = inner.tasks[current].task_syscall_time;
+        r
+    }
+    fn get_num_info(&self)->[u32;MAX_SYSCALL_NUM]{
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].task_syscall_num
+    }
+    fn init_time(&self){
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].task_syscall_time = get_time_ms();
+    }
 }
 
 /// Run the first task in task list.
@@ -168,4 +198,20 @@ pub fn suspend_current_and_run_next() {
 pub fn exit_current_and_run_next() {
     mark_current_exited();
     run_next_task();
+}
+/// a
+pub fn info_change(id:usize){
+    TASK_MANAGER.info_change(id);
+}
+/// a
+pub fn get_info_time()->usize{
+    TASK_MANAGER.get_time_info()
+}
+/// a
+pub fn get_info_num()->[u32;MAX_SYSCALL_NUM]{
+    TASK_MANAGER.get_num_info()
+}
+///a
+pub fn set_info_time(){
+    TASK_MANAGER.init_time();
 }
