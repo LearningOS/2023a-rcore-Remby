@@ -77,9 +77,16 @@ impl TaskManager {
     /// But in ch4, we load apps statically, so the first task is a real app.
     fn run_first_task(&self) -> ! {
         let mut inner = self.inner.exclusive_access();
+<<<<<<< HEAD
         let next_task = &mut inner.tasks[0];
         next_task.task_status = TaskStatus::Running;
         let next_task_cx_ptr = &next_task.task_cx as *const TaskContext;
+=======
+        let task0 = &mut inner.tasks[0];
+        task0.task_syscall_time = get_time_ms();
+        task0.task_status = TaskStatus::Running;
+        let next_task_cx_ptr = &task0.task_cx as *const TaskContext;
+>>>>>>> 9a98de0... update
         drop(inner);
         let mut _unused = TaskContext::zero_init();
         // before this, we should drop local variables that must be dropped manually
@@ -141,6 +148,9 @@ impl TaskManager {
             let current = inner.current_task;
             inner.tasks[next].task_status = TaskStatus::Running;
             inner.current_task = next;
+            if inner.tasks[next].task_syscall_time==0{
+                inner.tasks[next].task_syscall_time=get_time_ms();
+            }
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
             drop(inner);
