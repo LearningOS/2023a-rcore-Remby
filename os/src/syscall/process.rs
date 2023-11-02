@@ -5,7 +5,8 @@ use crate::{
     config::MAX_SYSCALL_NUM,
     task::{
         change_program_brk, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus, current_user_token,
-    }, timer::get_time_us,mm::change_byte_buffer,
+        get_info_num,get_info_time,}, 
+        timer::{get_time_us,get_time_ms},mm::change_byte_buffer,
 };
 
 #[repr(C)]
@@ -63,7 +64,12 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
 pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
     trace!("kernel: sys_task_info NOT IMPLEMENTED YET!");
-    -1
+    unsafe {
+        (*_ti).status = TaskStatus::Running;
+        (*_ti).syscall_times = get_info_num();
+        (*_ti).time = get_time_ms()-get_info_time();
+    }
+    0
 }
 
 // YOUR JOB: Implement mmap.
