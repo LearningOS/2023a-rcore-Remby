@@ -5,8 +5,8 @@ use crate::{
     config::{MAX_SYSCALL_NUM, PAGE_SIZE},
     task::{
         change_program_brk, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus, current_user_token,
-        get_info_num,get_info_time,}, 
-        timer::{get_time_us,get_time_ms},mm::{ VirtPageNum,change_byte_buffer, smap,sumap},
+        get_info_num,get_info_time, export_map, export_unmap,}, 
+        timer::get_time_us,mm::{ VirtPageNum,change_byte_buffer},
 };
 
 #[repr(C)]
@@ -68,7 +68,7 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
     {
         status :TaskStatus::Running,
         syscall_times : get_info_num(),
-        time : get_time_ms()-get_info_time(),
+        time : (get_time_us()-get_info_time())/1000,
     };
     let len = size_of::<TaskInfo>();
     let vptr = _ti as *mut u8;
@@ -84,20 +84,21 @@ pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
     if _start%PAGE_SIZE!=0 || _len==0 || _port&0x7==0 || _port&(!0x7)!=0{
         return  -1;
     }
-    let token = current_user_token();
     let bits = ((_port as u8)<<1) | 1<<4;
     let ct = (_len+PAGE_SIZE-1)/PAGE_SIZE;
     let vpn = VirtPageNum(_start / PAGE_SIZE);
-    smap(token, vpn, bits,ct)
+    export_map(vpn, bits,ct)
 }
 
 // YOUR JOB: Implement munmap.
 pub fn sys_munmap(_start: usize, _len: usize) -> isize {
     trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
+    if _start%PAGE_SIZE!=0{
+        return  -1;
+    }
     let ct = (_len+PAGE_SIZE-1)/PAGE_SIZE;
-    let token = current_user_token();
     let vpn = VirtPageNum(_start / PAGE_SIZE);
-    sumap(token, vpn,ct)
+    export_unmap(vpn,ct)
 }
 /// change data segment size
 pub fn sys_sbrk(size: i32) -> isize {

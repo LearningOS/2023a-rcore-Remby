@@ -127,6 +127,21 @@ impl PageTable {
         }
         result
     }
+    pub fn b_map(&self, vpn: VirtPageNum)->isize{
+        if let Some(x)= self.find_pte(vpn){
+            if x.is_valid(){return -1;}
+        }
+        0
+    }
+    pub fn b_unmap(&self, vpn: VirtPageNum)->isize{
+        if let Some(x)= self.find_pte(vpn){
+            if !x.is_valid(){return -1;}
+        }
+        else{
+            return -1;
+        }
+        0
+    }
     /// set the map between virtual page number and physical page number
     #[allow(unused)]
     pub fn map(&mut self, vpn: VirtPageNum, ppn: PhysPageNum, flags: PTEFlags) {
@@ -186,7 +201,6 @@ pub fn change_byte_buffer(token: usize, vptr: *mut u8, pptr: *const u8, len: usi
     let sofs = start_va.page_offset();
     let eofs = end_va.page_offset();
     let start_pa = (ppn.0<<PAGE_SIZE_BITS)|sofs;
-
     let mut page_count = 1;
     if eofs<sofs{
         page_count+=1;
@@ -219,59 +233,4 @@ pub fn change_byte_buffer(token: usize, vptr: *mut u8, pptr: *const u8, len: usi
         }
     }
 
-}
-
-/// smap function [`usize`]
-pub fn smap(token: usize,vpn: VirtPageNum, port:u8,ct:usize)->isize{
-    let mut pg = PageTable::from_token(token);
-    println!("now token is {}, port is {} , count is {}",token,port,ct);
-    for i in 0..ct {
-        let nvpn = VirtPageNum(vpn.0+i);
-        println!("vpn is {} nvpn is {} ",vpn.0,nvpn.0);
-        if let Some(x) = pg.find_pte(nvpn) {
-            println!("{}",x.bits);
-            if x.is_valid(){
-                return -1
-            }
-        }
-    }
-    for i in 0..ct{
-        // let frame = frame_alloc().unwrap();
-        let flags = PTEFlags::from_bits(port).unwrap();
-        let nvpn = VirtPageNum(vpn.0+i);
-        pg.map(nvpn, PhysPageNum(0), flags);
-    }
-    if let Some(x) = pg.find_pte(vpn) {
-        println!("now vpn entry is {}",x.bits);
-    }
-    0
-}
-
-/// unmap function is a slice array 
-pub fn sumap(token: usize,vpn: VirtPageNum,ct:usize)->isize{
-    let mut pg = PageTable::from_token(token);
-    println!("now unmap token is {} vpn is {} count is {}",token,vpn.0,ct);
-    for i in 0..ct {
-        let nvpn = VirtPageNum(vpn.0+i);
-        match pg.find_pte(nvpn) {
-            Some(pte)=>{
-                println!("now unmap pte is {}",pte.bits);
-                if !pte.is_valid() {
-                    return -1;
-                }
-            },
-            None=>
-            {
-                println!("it is none");
-                return -1;
-            }
-        }
-        
-    }
-    for i in 0..ct{
-        let nvpn = VirtPageNum(vpn.0+i);
-        pg.unmap(nvpn);
-    }
-    0
-    
 }

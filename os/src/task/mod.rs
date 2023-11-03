@@ -15,12 +15,13 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm::VirtPageNum;
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
 use lazy_static::*;
 use switch::__switch;
-use crate::timer::get_time_ms;
+use crate::timer::get_time_us;
 pub use task::{TaskControlBlock, TaskStatus};
 
 use crate::config::MAX_SYSCALL_NUM;
@@ -81,6 +82,7 @@ impl TaskManager {
     fn run_first_task(&self) -> ! {
         let mut inner = self.inner.exclusive_access();
         let next_task = &mut inner.tasks[0];
+        next_task.task_syscall_time = get_time_us();
         next_task.task_status = TaskStatus::Running;
         let next_task_cx_ptr = &next_task.task_cx as *const TaskContext;
         drop(inner);
@@ -144,6 +146,9 @@ impl TaskManager {
             let current = inner.current_task;
             inner.tasks[next].task_status = TaskStatus::Running;
             inner.current_task = next;
+            if inner.tasks[next].task_syscall_time==0{
+                inner.tasks[next].task_syscall_time=get_time_us();
+            }
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
             drop(inner);
@@ -178,7 +183,18 @@ impl TaskManager {
     fn init_time(&self){
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
-        inner.tasks[current].task_syscall_time = get_time_ms();
+        inner.tasks[current].task_syscall_time = get_time_us();
+    }
+
+    fn task_map(&self,vpn: VirtPageNum, port:u8,count:usize)->isize{
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].memory_set.smap(vpn, port, count)
+    }
+    fn task_unmap(&self,vpn: VirtPageNum,count:usize)->isize{
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].memory_set.sumap(vpn, count)
     }
 }
 
@@ -245,4 +261,12 @@ pub fn get_info_num()->[u32;MAX_SYSCALL_NUM]{
 ///a
 pub fn set_info_time(){
     TASK_MANAGER.init_time();
+}
+///a
+pub fn export_map(vpn: VirtPageNum, port:u8,count:usize)->isize{
+    TASK_MANAGER.task_map(vpn, port, count)
+}
+///a
+pub fn export_unmap(vpn: VirtPageNum,count:usize)->isize{
+    TASK_MANAGER.task_unmap(vpn, count)
 }

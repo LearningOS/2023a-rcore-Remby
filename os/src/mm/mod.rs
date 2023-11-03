@@ -17,7 +17,7 @@ use address::{StepByOne, VPNRange};
 pub use frame_allocator::{frame_alloc, FrameTracker};
 pub use memory_set::remap_test;
 pub use memory_set::{kernel_stack_position, MapPermission, MemorySet, KERNEL_SPACE};
-pub use page_table::{translated_byte_buffer, PageTableEntry,change_byte_buffer,smap,sumap};
+pub use page_table::{translated_byte_buffer, PageTableEntry,change_byte_buffer};
 use page_table::{PTEFlags, PageTable};
 
 /// initiate heap allocator, frame allocator and kernel space
