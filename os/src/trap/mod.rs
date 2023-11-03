@@ -26,7 +26,7 @@ use riscv::register::{
     scause::{self, Exception, Interrupt, Trap},
     sie, stval, stvec,
 };
-
+use crate::task::info_change;
 global_asm!(include_str!("trap.S"));
 
 /// Initialize trap handling
@@ -65,6 +65,8 @@ pub fn trap_handler() -> ! {
         Trap::Exception(Exception::UserEnvCall) => {
             // jump to next instruction anyway
             cx.sepc += 4;
+            // a
+            info_change( cx.x[17]);
             // get system call return value
             cx.x[10] = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]) as usize;
         }
