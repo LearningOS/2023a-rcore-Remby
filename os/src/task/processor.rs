@@ -10,6 +10,7 @@ use super::{TaskContext, TaskControlBlock};
 use crate::config::MAX_SYSCALL_NUM;
 use crate::mm::VirtPageNum;
 use crate::sync::UPSafeCell;
+use crate::timer::get_time_us;
 use crate::trap::TrapContext;
 use alloc::sync::Arc;
 use lazy_static::*;
@@ -63,6 +64,9 @@ pub fn run_tasks() {
             let mut task_inner = task.inner_exclusive_access();
             let next_task_cx_ptr = &task_inner.task_cx as *const TaskContext;
             task_inner.task_status = TaskStatus::Running;
+            if task_inner.task_syscall_time==0{
+                task_inner.task_syscall_time=get_time_us();
+            }
             // release coming task_inner manually
             drop(task_inner);
             // release coming task TCB manually
@@ -127,11 +131,11 @@ pub fn get_info_num()->[u32;MAX_SYSCALL_NUM]{
     let task = current_task().unwrap();
     task.get_num_info()
 }
-///a
-pub fn set_info_time(){
-    let task = current_task().unwrap();
-    task.init_time();
-}
+// ///a
+// pub fn set_info_time(){
+//     let task = current_task().unwrap();
+//     task.init_time();
+// }
 ///a
 pub fn export_map(vpn: VirtPageNum, port:u8,count:usize)->isize{
     let task = current_task().unwrap();

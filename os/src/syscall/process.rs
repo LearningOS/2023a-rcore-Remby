@@ -8,8 +8,8 @@ use crate::{
     mm::{translated_refmut, translated_str},
     task::{
         add_task, current_task, current_user_token, exit_current_and_run_next,
-        suspend_current_and_run_next, TaskStatus,get_info_num,get_info_time, 
-        export_map, export_unmap,
+        suspend_current_and_run_next, TaskStatus,
+       get_info_num,get_info_time, export_map, export_unmap,
     },
     timer::get_time_us,mm::{ VirtPageNum,change_byte_buffer},
 };
@@ -72,7 +72,7 @@ pub fn sys_exec(path: *const u8) -> isize {
     let path = translated_str(token, path);
     if let Some(data) = get_app_data_by_name(path.as_str()) {
         let task = current_task().unwrap();
-        task.spawn(data);
+        task.exec(data);
         0
     } else {
         -1
@@ -210,7 +210,9 @@ pub fn sys_spawn(_path: *const u8) -> isize {
     let token = current_user_token();
     let path = translated_str(token, _path);
     if let Some(data) = get_app_data_by_name(path.as_str()) {
-         current_task.spawn(data)
+         let a = current_task.spawn(data);
+         add_task(a.clone());
+         a.pid.0 as isize
     } else {
         -1
     }
@@ -222,5 +224,9 @@ pub fn sys_set_priority(_prio: isize) -> isize {
         "kernel:pid[{}] sys_set_priority NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    if _prio<=1 {-1}
+    else{
+        _prio
+    }
+    
 }

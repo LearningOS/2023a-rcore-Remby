@@ -26,7 +26,7 @@ use riscv::register::{
     scause::{self, Exception, Interrupt, Trap},
     sie, stval, stvec,
 };
-
+use crate::task::info_change;
 global_asm!(include_str!("trap.S"));
 
 /// Initialize trap handling
@@ -65,6 +65,7 @@ pub fn trap_handler() -> ! {
             // jump to next instruction anyway
             let mut cx = current_trap_cx();
             cx.sepc += 4;
+            info_change( cx.x[17]);
             // get system call return value
             let result = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]);
             // cx is changed during sys_exec, so we have to call it again

@@ -33,7 +33,7 @@ pub use id::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
 pub use manager::add_task;
 pub use processor::{
     current_task, current_trap_cx, current_user_token, run_tasks, schedule, take_current_task,
-    get_info_num,get_info_time, export_map, export_unmap,
+    get_info_num,get_info_time, export_map, export_unmap,info_change,
     Processor,
 };
 /// Suspend the current 'Running' task and run the next task in task list.
@@ -62,7 +62,6 @@ pub const IDLE_PID: usize = 0;
 pub fn exit_current_and_run_next(exit_code: i32) {
     // take from Processor
     let task = take_current_task().unwrap();
-
     let pid = task.getpid();
     if pid == IDLE_PID {
         println!(
