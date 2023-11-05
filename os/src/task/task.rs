@@ -2,12 +2,14 @@
 use super::TaskContext;
 use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
 use crate::config::TRAP_CONTEXT_BASE;
-use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
+use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE, VirtPageNum};
 use crate::sync::UPSafeCell;
+use crate::timer::get_time_us;
 use crate::trap::{trap_handler, TrapContext};
 use alloc::sync::{Arc, Weak};
 use alloc::vec::Vec;
 use core::cell::RefMut;
+use crate::config::MAX_SYSCALL_NUM;
 
 /// Task control block structure
 ///
@@ -68,6 +70,13 @@ pub struct TaskControlBlockInner {
 
     /// Program break
     pub program_brk: usize,
+    
+    /// a
+    pub task_syscall_time:usize,
+
+    /// a
+    pub task_syscall_num:[u32;MAX_SYSCALL_NUM],
+
 }
 
 impl TaskControlBlockInner {
@@ -118,6 +127,8 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: user_sp,
                     program_brk: user_sp,
+                    task_syscall_time:0,
+                    task_syscall_num:[0;MAX_SYSCALL_NUM],
                 })
             },
         };
@@ -191,6 +202,8 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
+                    task_syscall_time:0,
+                    task_syscall_num:[0;MAX_SYSCALL_NUM],
                 })
             },
         });
@@ -235,6 +248,47 @@ impl TaskControlBlock {
         } else {
             None
         }
+    }
+
+     /// a
+    pub fn info_change(&self,id:usize){
+        let mut inner = self.inner_exclusive_access();
+        inner.task_syscall_num[id]+=1;
+    }
+
+    /// a
+    pub fn get_time_info(&self)->usize{
+        let  inner = self.inner_exclusive_access();
+        let r = inner.task_syscall_time;
+        r
+    }
+    ///a
+    pub fn get_num_info(&self)->[u32;MAX_SYSCALL_NUM]{
+        let  inner = self.inner_exclusive_access();
+        inner.task_syscall_num
+    }
+    ///a
+    pub fn init_time(&self){
+        let mut inner = self.inner_exclusive_access();
+        inner.task_syscall_time = get_time_us();
+    }
+    ///a
+    pub fn task_map(&self,vpn: VirtPageNum, port:u8,count:usize)->isize{
+        let mut inner = self.inner_exclusive_access();
+        inner.memory_set.smap(vpn, port, count)
+    }
+    ///a
+    pub fn task_unmap(&self,vpn: VirtPageNum,count:usize)->isize{
+        let mut inner = self.inner_exclusive_access();
+        inner.memory_set.sumap(vpn, count)
+    }
+
+    /// a
+    pub fn spawn(&self,elf_data:&[u8])->isize{
+        let mut parent_inner = self.inner_exclusive_access();
+        let task_control_block = Arc::new(Self::new(elf_data));
+        parent_inner.children.push(task_control_block.clone());
+        task_control_block.pid.0 as isize
     }
 }
 

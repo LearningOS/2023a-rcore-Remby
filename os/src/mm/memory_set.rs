@@ -34,6 +34,7 @@ lazy_static! {
 pub struct MemorySet {
     page_table: PageTable,
     areas: Vec<MapArea>,
+    frame:Vec<FrameTracker>,
 }
 
 impl MemorySet {
@@ -42,6 +43,7 @@ impl MemorySet {
         Self {
             page_table: PageTable::new(),
             areas: Vec::new(),
+            frame: Vec::new(),
         }
     }
     /// Get the page table token
@@ -299,6 +301,41 @@ impl MemorySet {
         } else {
             false
         }
+    }
+     /// smap function [`usize`]
+     pub fn smap(&mut self,vpn: VirtPageNum, port:u8,count:usize)->isize{
+        for i in 0..count {
+            let nvpn = VirtPageNum(vpn.0+i);
+            let b = self.page_table.b_map(nvpn);
+            if b==-1{
+                return -1;
+            }
+        }
+        for i in 0..count{
+            let f = frame_alloc().unwrap();
+            println!("now frametracer is {}",f.ppn.0);
+            let flags = PTEFlags::from_bits(port).unwrap();
+            let nvpn = VirtPageNum(vpn.0+i);
+            self.page_table.map(nvpn, f.ppn, flags);
+            println!("now  nvpn is {}",nvpn.0);
+            self.frame.push(f); 
+        }
+        0
+    }
+    /// unmap function is a slice array 
+    pub fn sumap(&mut self,vpn: VirtPageNum,count:usize)->isize{
+        for i in 0..count {
+            let nvpn = VirtPageNum(vpn.0+i);
+            let b = self.page_table.b_unmap(nvpn);
+            if b==-1{
+                return -1;
+            }
+        }
+        for i in 0..count{
+            let nvpn = VirtPageNum(vpn.0+i);
+            self.page_table.unmap(nvpn);
+        }
+        0
     }
 }
 /// map area structure, controls a contiguous piece of virtual memory

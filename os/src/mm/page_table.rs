@@ -4,6 +4,7 @@ use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 use bitflags::*;
+use crate::config::{PAGE_SIZE_BITS, PAGE_SIZE};
 
 bitflags! {
     /// page table entry flags
@@ -125,6 +126,21 @@ impl PageTable {
         }
         result
     }
+    pub fn b_map(&self, vpn: VirtPageNum)->isize{
+        if let Some(x)= self.find_pte(vpn){
+            if x.is_valid(){return -1;}
+        }
+        0
+    }
+    pub fn b_unmap(&self, vpn: VirtPageNum)->isize{
+        if let Some(x)= self.find_pte(vpn){
+            if !x.is_valid(){return -1;}
+        }
+        else{
+            return -1;
+        }
+        0
+    }
     /// set the map between virtual page number and physical page number
     #[allow(unused)]
     pub fn map(&mut self, vpn: VirtPageNum, ppn: PhysPageNum, flags: PTEFlags) {
@@ -212,4 +228,47 @@ pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
         .translate_va(VirtAddr::from(va))
         .unwrap()
         .get_mut()
+}
+/// change byte buffer 
+pub fn change_byte_buffer(token: usize, vptr: *mut u8, pptr: *const u8, len: usize){
+    let page_table = PageTable::from_token(token);
+    let start = vptr as usize;
+    let end = start + len;
+    let start_va = VirtAddr::from(start);
+    let end_va = VirtAddr::from(end);
+    let mut vpn = start_va.floor();
+    let ppn = page_table.translate(vpn).unwrap().ppn();
+    let sofs = start_va.page_offset();
+    let eofs = end_va.page_offset();
+    let start_pa = (ppn.0<<PAGE_SIZE_BITS)|sofs;
+    let mut page_count = 1;
+    if eofs<sofs{
+        page_count+=1;
+    }
+    match page_count {
+        1=>{
+            unsafe{
+                let pdata = core::slice::from_raw_parts_mut(start_pa as *mut u8, len);
+                for i in 0..len{
+                    pdata[i] = *((pptr as usize + i) as *const u8);
+                }
+            }
+        }
+        _=>{
+            unsafe{
+                let len1 = PAGE_SIZE-sofs;
+                let pdata = core::slice::from_raw_parts_mut(start_pa as *mut u8, len1);
+                for i in 0..len1{
+                    pdata[i] = *((pptr as usize + i) as *const u8);
+                }
+                vpn.step();
+                let ppn = page_table.translate(vpn).unwrap().ppn();
+                let st_pa = (ppn.0<<PAGE_SIZE_BITS)|sofs;
+                let pdata = core::slice::from_raw_parts_mut(st_pa as *mut u8, len1);
+                for i in 0..(len-len1){
+                    pdata[i] = *((pptr as usize + i) as *const u8);
+                }
+            }
+        }
+    }
 }

@@ -1,14 +1,17 @@
 //! Process management syscalls
 use alloc::sync::Arc;
+use core::mem::size_of;
 
 use crate::{
-    config::MAX_SYSCALL_NUM,
+    config::{MAX_SYSCALL_NUM,PAGE_SIZE},
     loader::get_app_data_by_name,
     mm::{translated_refmut, translated_str},
     task::{
         add_task, current_task, current_user_token, exit_current_and_run_next,
-        suspend_current_and_run_next, TaskStatus,
+        suspend_current_and_run_next, TaskStatus,get_info_num,get_info_time, 
+        export_map, export_unmap,
     },
+    timer::get_time_us,mm::{ VirtPageNum,change_byte_buffer},
 };
 
 #[repr(C)]
@@ -69,7 +72,7 @@ pub fn sys_exec(path: *const u8) -> isize {
     let path = translated_str(token, path);
     if let Some(data) = get_app_data_by_name(path.as_str()) {
         let task = current_task().unwrap();
-        task.exec(data);
+        task.spawn(data);
         0
     } else {
         -1
@@ -122,7 +125,17 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
         "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    let us = get_time_us();
+    let len = size_of::<TimeVal>();
+    let tv = TimeVal {
+        sec: us / 1_000_000,
+        usec: us % 1_000_000,
+    };
+    let vptr = _ts as *mut u8;
+    let pptr =  &tv as *const TimeVal as *const u8;
+    let token = current_user_token();
+    change_byte_buffer(token, vptr, pptr, len);
+    0
 }
 
 /// YOUR JOB: Finish sys_task_info to pass testcases
@@ -133,7 +146,18 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
         "kernel:pid[{}] sys_task_info NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    let t = TaskInfo
+    {
+        status :TaskStatus::Running,
+        syscall_times : get_info_num(),
+        time : (get_time_us()-get_info_time())/1000,
+    };
+    let len = size_of::<TaskInfo>();
+    let vptr = _ti as *mut u8;
+    let pptr =  &t as *const TaskInfo as *const u8;
+    let token = current_user_token();
+    change_byte_buffer(token, vptr, pptr, len);
+    0
 }
 
 /// YOUR JOB: Implement mmap.
@@ -142,7 +166,13 @@ pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
         "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    if _start%PAGE_SIZE!=0 || _len==0 || _port&0x7==0 || _port&(!0x7)!=0{
+        return  -1;
+    }
+    let bits = ((_port as u8)<<1) | 1<<4;
+    let ct = (_len+PAGE_SIZE-1)/PAGE_SIZE;
+    let vpn = VirtPageNum(_start / PAGE_SIZE);
+    export_map(vpn, bits,ct)
 }
 
 /// YOUR JOB: Implement munmap.
@@ -151,7 +181,12 @@ pub fn sys_munmap(_start: usize, _len: usize) -> isize {
         "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    if _start%PAGE_SIZE!=0{
+        return  -1;
+    }
+    let ct = (_len+PAGE_SIZE-1)/PAGE_SIZE;
+    let vpn = VirtPageNum(_start / PAGE_SIZE);
+    export_unmap(vpn,ct)
 }
 
 /// change data segment size
@@ -171,7 +206,14 @@ pub fn sys_spawn(_path: *const u8) -> isize {
         "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    let current_task = current_task().unwrap();
+    let token = current_user_token();
+    let path = translated_str(token, _path);
+    if let Some(data) = get_app_data_by_name(path.as_str()) {
+         current_task.spawn(data)
+    } else {
+        -1
+    }
 }
 
 // YOUR JOB: Set task priority.

@@ -7,6 +7,8 @@
 use super::__switch;
 use super::{fetch_task, TaskStatus};
 use super::{TaskContext, TaskControlBlock};
+use crate::config::MAX_SYSCALL_NUM;
+use crate::mm::VirtPageNum;
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::sync::Arc;
@@ -108,4 +110,35 @@ pub fn schedule(switched_task_cx_ptr: *mut TaskContext) {
     unsafe {
         __switch(switched_task_cx_ptr, idle_task_cx_ptr);
     }
+}
+
+/// a
+pub fn info_change(id:usize){
+    let task = current_task().unwrap();
+    task.info_change(id);
+}
+/// a
+pub fn get_info_time()->usize{
+    let task = current_task().unwrap();
+    task.get_time_info()
+}
+/// a
+pub fn get_info_num()->[u32;MAX_SYSCALL_NUM]{
+    let task = current_task().unwrap();
+    task.get_num_info()
+}
+///a
+pub fn set_info_time(){
+    let task = current_task().unwrap();
+    task.init_time();
+}
+///a
+pub fn export_map(vpn: VirtPageNum, port:u8,count:usize)->isize{
+    let task = current_task().unwrap();
+    task.task_map(vpn, port, count)
+}
+///a
+pub fn export_unmap(vpn: VirtPageNum,count:usize)->isize{
+    let task = current_task().unwrap();
+    task.task_unmap(vpn, count)
 }
